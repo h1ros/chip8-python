@@ -22,6 +22,7 @@ CHIP8_FONTSET = \
 BUFFER_SIZE = 4096
 
 
+
 class MyChip8(object):
 
     draw_flag = 0
@@ -29,6 +30,7 @@ class MyChip8(object):
     def __init__(self):
         """Initialize registers and memory once"""
         self.pc = 0x200  # program counter starts at 0x200 (=512)
+        print(f'self.pc: {self.pc}')
         self.opcode = 0  # initial opcode
         self.I = 0  # index register
         self.sp = 0  # stack pointer
@@ -52,7 +54,7 @@ class MyChip8(object):
 
         with open(game_name, "rb") as f:
             for i in range(0, BUFFER_SIZE - 512):
-                b = f.read(8) # read one hexadecimal and store as integer
+                b = f.read(1) # read one hexadecimal and store as integer
                 if b:
                     self.memory[i + 512] = int.from_bytes(b, 'big')
         print(self.memory)
@@ -67,8 +69,9 @@ class MyChip8(object):
         4. Update timers
         """
         # Fetch opcode
+        print(f'self.pc: {self.pc}')
         self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc]
-        
+        print(f'self.opcode: {self.opcode}')
         # Decode opcode
         if self.opcode & 0xF000 == 0xA000:
             # ANNN: sets I to the adress NNN
@@ -77,6 +80,9 @@ class MyChip8(object):
         elif self.opcode & 0xF000 == 0xB000:
             # BNNN: jumps to the adress NNN plus V0
             self.pc = self.V[0] + self.opcode & 0x0FFF
+        elif self.opcode & 0xF000 == 0x6000:
+            # 6XNN: Sets VX to NN.
+            self.V[(self.opcode & 0x0F00) >> 8] = self.opcode & 0x00FF
         else:  
             print('Unknown opcode: 0x%x\n' % self.opcode)
 
