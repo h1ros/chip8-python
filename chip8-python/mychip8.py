@@ -30,7 +30,6 @@ class MyChip8(object):
     def __init__(self):
         """Initialize registers and memory once"""
         self.pc = 0x200  # program counter starts at 0x200 (=512)
-        print(f'self.pc: {self.pc}')
         self.opcode = 0  # initial opcode
         self.I = 0  # index register
         self.sp = 0  # stack pointer
@@ -38,6 +37,8 @@ class MyChip8(object):
         self.memory = [0] * BUFFER_SIZE # memory
 
         # Clear display
+        self.gfx = [0] * (64 * 32)
+
         # Clear stack
         # Clear registers V0-VF
         # Clear memory
@@ -57,9 +58,23 @@ class MyChip8(object):
                 b = f.read(1) # read one hexadecimal and store as integer
                 if b:
                     self.memory[i + 512] = int.from_bytes(b, 'big')
-        print(self.memory)
+        
     def set_keys(self):
         pass
+    
+    def draw(self, Vx, Vy, height):
+        self.V[0xF] = 0
+        for y in range(0, height):
+            pixel = self.memory[self.I + y]
+            for x in range(0, 8):
+                if (pixel  & (0x80 >> x)) != 0:
+                    if self.gfx[(Vx + x + ((Vy + y) * 64)) == 1]:
+                        self.V[0xF] = 1
+                    self.gfx[Vx + x + ((Vy + y) * 64)] ^= 1
+        
+        self.draw_flag = 1
+        self.pc += 2
+        
 
     def emulate_cycle(self):
         """Proceed one cycle of emulater following the steps below:
@@ -69,7 +84,6 @@ class MyChip8(object):
         4. Update timers
         """
         # Fetch opcode
-        print(f'self.pc: {self.pc}')
         self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc]
         print(f'self.opcode: {self.opcode}')
         # Decode opcode
@@ -83,6 +97,13 @@ class MyChip8(object):
         elif self.opcode & 0xF000 == 0x6000:
             # 6XNN: Sets VX to NN.
             self.V[(self.opcode & 0x0F00) >> 8] = self.opcode & 0x00FF
+        elif self.opcode & 0xF000 == 0xD000:
+            # DXYN: draw(Vx, Vy, N)
+            x = (self.opcode & 0x0F00) >> 8
+            y = (self.opcode & 0x00F0) >> 4
+            height = (self.opcode & 0x000F)
+            self.draw(self.V[x],self.V[y], height)
+    
         else:  
             print('Unknown opcode: 0x%x\n' % self.opcode)
 

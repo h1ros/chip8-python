@@ -1,22 +1,9 @@
 from mychip8 import MyChip8
 import time
 
-# Memory
-
-opcode = 0  # unsigned short
-memory = [0 for _ in range(4096)]  # unsigned char
-V = [0 for _ in range(16)]
-I = 0  # unsinged short
-pc = 0  # unsigned short
-
-gfx = [0 for _ in range(64 * 32)]
-delay_timer = 0  # unsigned char
-sound_timer = 0  # unsigned char
-
 stack = [0 for _ in range(16)]  # unsigned short
 sp = 0  # unsigned short
 key = [0 for _ in range(16)]  # unsigned char
-
 
 def main(argc: int, **argv):
     # Set up render system and register input callbacks
@@ -25,19 +12,18 @@ def main(argc: int, **argv):
 
     # Initialize the Chip8 system and load the game into the memory
     my_chip8 = MyChip8()
-    my_chip8.load_game(game_name="rom/pong.rom")
+    my_chip8.load_game(game_name="rom/test_opcode.ch8")
 
     # Emulation loop
     while True:
         print('Emulation Loop')
         time.sleep(1)
-
         # Emulate one cycle
         my_chip8.emulate_cycle()
 
         # If the draw flag is set, update the screen
         if my_chip8.draw_flag:
-            draw_graphics()
+            draw_graphics(my_chip8.gfx)
 
         # Store key press state (press and release)
         my_chip8.set_keys()
@@ -51,8 +37,19 @@ def setup_input():
     pass
 
 
-def draw_graphics():
-    pass
+def draw_graphics(gfx, t='*', f=' '):
+    print(f'gfx: \n')
+    graph = '-' * 64 + '\n'
+    for i, e in enumerate(gfx):
+        if i % 64 == 0:
+            graph += '\n'
+        if e:
+            graph += t
+        else:
+            graph += f
+    graph += '\n'    
+    graph += '-' * 64
+    print(graph)
 
 
 if __name__ == "__main__":
