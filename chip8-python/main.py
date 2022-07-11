@@ -1,18 +1,18 @@
 from mychip8 import MyChip8
 import time
-
+import argparse
 stack = [0 for _ in range(16)]  # unsigned short
 sp = 0  # unsigned short
 key = [0 for _ in range(16)]  # unsigned char
 
-def main(argc: int, **argv):
+def main(path_rom):
     # Set up render system and register input callbacks
     setup_graphics()
     setup_input()
 
     # Initialize the Chip8 system and load the game into the memory
     my_chip8 = MyChip8()
-    my_chip8.load_game(game_name="rom/test_opcode.ch8")
+    my_chip8.load_game(path_rom=path_rom)
 
     # Emulation loop
     while True:
@@ -53,4 +53,7 @@ def draw_graphics(gfx, t='*', f=' '):
 
 
 if __name__ == "__main__":
-    main(0)
+    parser = argparse.ArgumentParser(description='Python-based Chip-8 Emulator')
+    parser.add_argument('--path_rom', default='rom/pong.rom', dest='path_rom', help='File path for ROM (default: ./rom/pong.rom)')
+    print(parser.parse_args())
+    main(parser.parse_args().path_rom)

@@ -51,9 +51,9 @@ class MyChip8(object):
         self.delay_timer = 0
         self.sound_timer = 0
 
-    def load_game(self, game_name: str):
-
-        with open(game_name, "rb") as f:
+    def load_game(self, path_rom: str):
+        print(f'Loading ROM: {path_rom}')
+        with open(path_rom, "rb") as f:
             for i in range(0, BUFFER_SIZE - 512):
                 b = f.read(1) # read one hexadecimal and store as integer
                 if b:
@@ -103,7 +103,49 @@ class MyChip8(object):
             y = (self.opcode & 0x00F0) >> 4
             height = (self.opcode & 0x000F)
             self.draw(self.V[x],self.V[y], height)
-    
+        elif self.opcode & 0xF000 == 0x8000:
+            x = (self.opcode & 0x0F00) >> 8
+            y = (self.opcode & 0x00F0) >> 4
+            case = self.opcode & 0x000F
+            # 8XY0: Vx = Vy
+            if case == 0:
+                self.V[x] = self.V[y]
+            # 8XY1: Vx |= Vy
+            elif case == 1:
+                self.V[x] |= self.V[y]
+            # 8XY2: Vx &= Vy
+            elif case == 2:
+                self.V[x] &= self.V[y]           
+            # 8XY3: Vx ^= Vy
+            elif case == 3:
+                self.V[x] ^= self.V[y]
+            # 8XY4: Vx += Vy
+            elif case == 4:
+                if self.V[y] >  16 - self.V[x]:
+                    self.V[0xF] = 1 # carry
+                else:
+                    self.V[0xF] = 0
+                self.V[x] += self.V[y] 
+            # 8XY5: Vx -= Vy
+            elif case == 5:
+                self.V[x] -= self.V[y]
+            # 8XY6: Vx >>= Vy
+            elif case == 6:
+                self.V[x] >>= self.V[y]            
+            # 8XY7: Vx = Vy - Vx
+            elif case == 7:
+                if self.V[x] < self.V[y]:
+                    self.V[x] = 0  # TODO: check the behavior when it's below zero
+                else:
+                    self.V[x] = self.V[x] - self.V[y]            
+            # 8XYE: Vx <<= 1
+            elif case == 0xE:
+                if self.V[x] > 128:
+                    self.V[0xF] = 1 # carry
+                else:
+                    self.V[0xF] = 0 # carry
+                self.V[x] <<= 1
+             
         else:  
             print('Unknown opcode: 0x%x\n' % self.opcode)
 
