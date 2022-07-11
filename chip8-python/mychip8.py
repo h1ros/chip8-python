@@ -20,7 +20,7 @@ CHIP8_FONTSET = \
 ]
 # fmt: on
 BUFFER_SIZE = 4096
-
+SEED = 0xFF
 
 
 class MyChip8(object):
@@ -62,6 +62,12 @@ class MyChip8(object):
     def set_keys(self):
         pass
     
+    def get_keys(self):
+        pass
+
+    def rand(self):
+        return self.pc ^ SEED 
+    
     def draw(self, Vx, Vy, height):
         self.V[0xF] = 0
         for y in range(0, height):
@@ -84,25 +90,53 @@ class MyChip8(object):
         4. Update timers
         """
         # Fetch opcode
-        self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc]
-        print(f'self.opcode: {self.opcode}')
+        self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc + 1]
+        print(f'self.opcode: {hex(self.memory[self.pc])[2:]} {hex(self.memory[self.pc+1])[2:]} ')
+        self.pc += 2
         # Decode opcode
-        if self.opcode & 0xF000 == 0xA000:
-            # ANNN: sets I to the adress NNN
-            self.I = self.opcode & 0x0FFF
-            self.pc += 2
-        elif self.opcode & 0xF000 == 0xB000:
-            # BNNN: jumps to the adress NNN plus V0
-            self.pc = self.V[0] + self.opcode & 0x0FFF
-        elif self.opcode & 0xF000 == 0x6000:
-            # 6XNN: Sets VX to NN.
-            self.V[(self.opcode & 0x0F00) >> 8] = self.opcode & 0x00FF
-        elif self.opcode & 0xF000 == 0xD000:
-            # DXYN: draw(Vx, Vy, N)
+        if self.opcode & 0xFFFF == 0x00EE:
+            # 00EE: return
+            return            
+        elif self.opcode & 0xFFF0 == 0x00E0:
+            # 00E0: disp_clear()
+            self.disp_clear()
+        elif self.opcode & 0xF000 == 0x0000:
+            # 0NNN: return;
+            print(f'call machine code routine at {self.opcode & 0x0FFF}')            
+        elif self.opcode & 0xF000 == 0x1000:
+            # 1NNN: goto NNN;
+            self.pc =  self.opcode & 0x0FFF
+        elif self.opcode & 0xF000 == 0x2000:
+            # 2NNN: *(0xNNN)()
+            self.pc =  self.opcode & 0x0FFF
+        elif self.opcode & 0xF000 == 0x3000:
+            # 3XNN: if (Vx == NN)
+            x = (self.opcode & 0x0F00) >> 8
+            NN = self.opcode & 0x00FF 
+            if self.V[x] == NN:
+                self.pc += 2
+        elif self.opcode & 0xF000 == 0x4000:
+            # 4XNN: if (Vx != NN)
+            x = (self.opcode & 0x0F00) >> 8
+            NN = self.opcode & 0x00FF 
+            if self.V[x] != NN:
+                self.pc += 2
+        elif self.opcode & 0xF000 == 0x5000:
+            # 5XY0: if (Vx == Vy)
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
-            height = (self.opcode & 0x000F)
-            self.draw(self.V[x],self.V[y], height)
+            if self.V[x] == self.V[y]:
+                    self.pc += 2
+        elif self.opcode & 0xF000 == 0x6000:
+            # 6XNN: Sets VX to NN
+            x = (self.opcode & 0x0F00) >> 8
+            NN = self.opcode & 0x00FF 
+            self.V[x] = NN
+        elif self.opcode & 0xF000 == 0x7000:
+            # 7XNN: Vx += NN
+            x = (self.opcode & 0x0F00) >> 8
+            NN = self.opcode & 0x00FF 
+            self.V[x] += NN # Carry flag is not changed
         elif self.opcode & 0xF000 == 0x8000:
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
@@ -145,10 +179,85 @@ class MyChip8(object):
                 else:
                     self.V[0xF] = 0 # carry
                 self.V[x] <<= 1
-             
+        elif self.opcode & 0xF000 == 0x9000:
+            # 9XY0: if (Vx != Vy)
+            x = (self.opcode & 0x0F00) >> 8
+            y = (self.opcode & 0x00F0) >> 4
+            if self.V[x] != self.V[y]:
+                    self.pc += 2
+        elif self.opcode & 0xF000 == 0xA000:
+            # ANNN: I = NNN (sets I to the adress NNN)
+            self.I = self.opcode & 0x0FFF
+        elif self.opcode & 0xF000 == 0xB000:
+            # BNNN: PC = V0 + NNN (jumps to the adress NNN plus V0)
+            self.pc = self.V[0] + self.opcode & 0x0FFF
+        elif self.opcode & 0xF000 == 0xC000:
+            # CXNN: Vx = rand() & NN
+            x = (self.opcode & 0x0F00) >> 8
+            NN = self.opcode & 0x00FF 
+            self.V[x] = self.rand() + NN
+        elif self.opcode & 0xF000 == 0xD000:
+            # DXYN: draw(Vx, Vy, N)
+            x = (self.opcode & 0x0F00) >> 8
+            y = (self.opcode & 0x00F0) >> 4
+            height = (self.opcode & 0x000F)
+            self.draw(self.V[x],self.V[y], height)
+        elif self.opcode & 0xF0FF == 0xE09E:
+            # EX9E: if (key() == Vx)
+            x = (self.opcode & 0x0F00) >> 8
+            if self.key == self.V[x]:
+                self.pc += 2
+        elif self.opcode & 0xF0FF == 0xE0A1:
+            # EXA1: if (key() != Vx)
+            x = (self.opcode & 0x0F00) >> 8
+            if self.key != self.V[x]:
+                self.pc += 2
+        elif self.opcode & 0xF0FF == 0xF007:
+            # FX07: Vx = get_delay()
+            x = (self.opcode & 0x0F00) >> 8
+            self.delay_timer = x
+        elif self.opcode & 0xF0FF == 0xF00A:
+            # FX0A: Vx = get_key()
+            x = (self.opcode & 0x0F00) >> 8
+            self.V[x] = self.get_key()
+        elif self.opcode & 0xF0FF == 0xF015:
+            # FX15: delay_time(Vx)
+            x = (self.opcode & 0x0F00) >> 8
+            self.delay_timer = self.V[x]
+        elif self.opcode & 0xF0FF == 0xF018:
+            # FX18: sound_timer(Vx)
+            x = (self.opcode & 0x0F00) >> 8
+            self.sound_timer = self.V[x]
+        elif self.opcode & 0xF0FF == 0xF01E:
+            # FX1E: I += Vx
+            x = (self.opcode & 0x0F00) >> 8
+            self.I += self.V[x]
+        elif self.opcode & 0xF0FF == 0xF029:
+            # FX29: I = sprite_addr[Vx]
+            x = (self.opcode & 0x0F00) >> 8
+            self.I = self.V[x] # TODO: implement sprite_add[Vx]
+        elif self.opcode & 0xF0FF == 0xF033:
+            # FX33: set_BCD(Vx)
+                    # *(I+0) = BCD(3);
+                    # *(I+1) = BCD(2);
+                    # *(I+2) = BCD(1);
+            x = str((self.opcode & 0x0F00) >> 8).zfill(3)
+            self.memory[self.I] = int(x[0])
+            self.memory[self.I + 1] = int(x[1])
+            self.memory[self.I + 2] = int(x[2])
+        elif self.opcode & 0xF0FF == 0xF055:
+            # FX55: reg_dump(Vx, &I)
+            x = (self.opcode & 0x0F00) >> 8
+            for i in range(0, self.V[x]+1): 
+                self.memory[self.I + i] = self.V[i]
+        elif self.opcode & 0xF0FF == 0xF065:
+            # FX65: reg_load(Vx, &I)
+            x = (self.opcode & 0x0F00) >> 8
+            for i in range(0, self.V[x]+1): 
+                self.V[i] = self.memory[self.I + i] 
         else:  
-            print('Unknown opcode: 0x%x\n' % self.opcode)
-
+            raise('Unknown opcode: 0x%x\n' % self.opcode)
+            
         # Update timers
         if (self.delay_timer > 0): 
             self.delay_timer -= 1
