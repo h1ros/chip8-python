@@ -22,6 +22,7 @@ This project follows the rules below.
 * Chip-8 Documentation
     * https://en.wikipedia.org/wiki/CHIP-8#Virtual_machine_description
     * http://www.cs.columbia.edu/~sedwards/classes/2016/4840-spring/designs/Chip8.pdf
+    * http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.1
  
 
 # Terminology
