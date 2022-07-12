@@ -23,3 +23,10 @@ This project follows the rules below.
     * https://en.wikipedia.org/wiki/CHIP-8#Virtual_machine_description
     * http://www.cs.columbia.edu/~sedwards/classes/2016/4840-spring/designs/Chip8.pdf
  
+
+# Terminology
+* opcode - [operation code](https://en.wikipedia.org/wiki/CHIP-8#Opcode_table) 
+* pc - program counter
+* sp - stack pointer
+* I - index register
+ 
