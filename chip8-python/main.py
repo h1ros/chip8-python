@@ -1,9 +1,6 @@
 from mychip8 import MyChip8
 import time
 import argparse
-stack = [0 for _ in range(16)]  # unsigned short
-sp = 0  # unsigned short
-key = [0 for _ in range(16)]  # unsigned char
 
 def main(path_rom):
     # Set up render system and register input callbacks
@@ -17,7 +14,7 @@ def main(path_rom):
     # Emulation loop
     while True:
         print('Emulation Loop')
-        # time.sleep(1)
+        time.sleep(1)
         # Emulate one cycle
         my_chip8.emulate_cycle()
 

@@ -1,3 +1,12 @@
+import random
+import logging
+logger = logging.getLogger(__name__)  
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler('chip8.log')
+formatter = logging.Formatter('%(asctime)s : %(name)s  : %(funcName)s : %(levelname)s : %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
 # fmt: off
 CHIP8_FONTSET = \
 [ 
@@ -25,24 +34,26 @@ SEED = 0xFF
 
 class MyChip8(object):
 
-    draw_flag = 0
-
+    
     def __init__(self):
         """Initialize registers and memory once"""
         self.pc = 0x200  # program counter starts at 0x200 (=512)
         self.opcode = 0  # initial opcode
         self.I = 0  # index register
         self.sp = 0  # stack pointer
+        self.draw_flag = 0
+        self.key = [0 for _ in range(16)]  # unsigned char
+
+        # Clear registers V0-VF
         self.V = [0] * 16 # register
+        # Clear memory
         self.memory = [0] * BUFFER_SIZE # memory
 
         # Clear display
-        self.gfx = [0] * (64 * 32)
-
+        self.disp_clear()
         # Clear stack
-        # Clear registers V0-VF
-        # Clear memory
-
+        self.stack = [0 for _ in range(16)]  # unsigned short
+        
         # Load fontset
         for i in range(0, len(CHIP8_FONTSET)):
             self.memory[i] = CHIP8_FONTSET[i]
@@ -59,14 +70,14 @@ class MyChip8(object):
                 if b:
                     self.memory[i + 512] = int.from_bytes(b, 'big')
         
+    def disp_clear(self):
+        self.gfx = [0] * (64 * 32)
+
     def set_keys(self):
         pass
     
     def get_keys(self):
         pass
-
-    def rand(self):
-        return self.pc ^ SEED 
     
     def draw(self, Vx, Vy, height):
         self.V[0xF] = 0
@@ -89,51 +100,64 @@ class MyChip8(object):
         3. Execute Opcode
         4. Update timers
         """
+        logger.info(f'opcode: {hex(self.memory[self.pc])[2:]} {hex(self.memory[self.pc+1])[2:].zfill(2)} ')
+        print(f'self.V: {self.V}')
+        print(f'self.I: {self.I}')
+        print(f'self.pc: {self.pc}')
+        print(f'self.stack: {self.stack}')
+        print(f'self.sp: {self.sp}')
+        print(f'self.delay_timer: {self.delay_timer}')
+        
+        
         # Fetch opcode
         self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc + 1]
-        print(f'self.opcode: {hex(self.memory[self.pc])[2:]} {hex(self.memory[self.pc+1])[2:]} ')
         self.pc += 2
         # Decode opcode
         if self.opcode & 0xFFFF == 0x00EE:
-            # 00EE: return
-            return            
+            logger.info("00EE: return")
+            self.pc = self.stack[self.sp]
+            self.sp -= 1 
+                        
         elif self.opcode & 0xFFF0 == 0x00E0:
-            # 00E0: disp_clear()
+            logger.info("00E0: disp_clear()")
             self.disp_clear()
         elif self.opcode & 0xF000 == 0x0000:
-            # 0NNN: return;
-            print(f'call machine code routine at {self.opcode & 0x0FFF}')            
+            logger.info("0NNN: return;")
+            self.pc = self.stack[self.sp]
+            self.sp -= 1 
         elif self.opcode & 0xF000 == 0x1000:
-            # 1NNN: goto NNN;
+            logger.info("# 1NNN: goto NNN;")
             self.pc =  self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0x2000:
-            # 2NNN: *(0xNNN)()
+            logger.info("# 2NNN: *(0xNNN)()")
+            self.sp += 1
+            self.stack[self.sp] = self.pc
             self.pc =  self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0x3000:
-            # 3XNN: if (Vx == NN)
+            logger.info("# 3XNN: if (Vx == NN)")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
             if self.V[x] == NN:
                 self.pc += 2
         elif self.opcode & 0xF000 == 0x4000:
-            # 4XNN: if (Vx != NN)
+            logger.info("# 4XNN: if (Vx != NN)")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
             if self.V[x] != NN:
                 self.pc += 2
         elif self.opcode & 0xF000 == 0x5000:
-            # 5XY0: if (Vx == Vy)
+            logger.info("#5XY0: if (Vx == Vy)")
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
             if self.V[x] == self.V[y]:
                     self.pc += 2
         elif self.opcode & 0xF000 == 0x6000:
-            # 6XNN: Sets VX to NN
+            logger.info("#6XNN: Sets VX to NN")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
             self.V[x] = NN
         elif self.opcode & 0xF000 == 0x7000:
-            # 7XNN: Vx += NN
+            logger.info("#7XNN: Vx += NN")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
             self.V[x] += NN # Carry flag is not changed
@@ -141,103 +165,103 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
             case = self.opcode & 0x000F
-            # 8XY0: Vx = Vy
             if case == 0:
+                logger.info("#8XY0: Vx = Vy")
                 self.V[x] = self.V[y]
-            # 8XY1: Vx |= Vy
             elif case == 1:
+                logger.info("#8XY1: Vx |= Vy")
                 self.V[x] |= self.V[y]
-            # 8XY2: Vx &= Vy
             elif case == 2:
+                logger.info("#8XY2: Vx &= Vy")
                 self.V[x] &= self.V[y]           
-            # 8XY3: Vx ^= Vy
             elif case == 3:
+                logger.info("#8XY3: Vx ^= Vy")
                 self.V[x] ^= self.V[y]
-            # 8XY4: Vx += Vy
             elif case == 4:
+                logger.info("#8XY4: Vx += Vy")
                 if self.V[y] >  16 - self.V[x]:
                     self.V[0xF] = 1 # carry
                 else:
                     self.V[0xF] = 0
                 self.V[x] += self.V[y] 
-            # 8XY5: Vx -= Vy
             elif case == 5:
+                logger.info("#8XY5: Vx -= Vy")
                 self.V[x] -= self.V[y]
-            # 8XY6: Vx >>= Vy
             elif case == 6:
+                logger.info("#8XY6: Vx >>= Vy")
                 self.V[x] >>= self.V[y]            
-            # 8XY7: Vx = Vy - Vx
+                logger.info("#8XY7: Vx = Vy - Vx")
             elif case == 7:
                 if self.V[x] < self.V[y]:
                     self.V[x] = 0  # TODO: check the behavior when it's below zero
                 else:
                     self.V[x] = self.V[x] - self.V[y]            
-            # 8XYE: Vx <<= 1
             elif case == 0xE:
+                logger.info("#8XYE: Vx <<= 1")
                 if self.V[x] > 128:
                     self.V[0xF] = 1 # carry
                 else:
                     self.V[0xF] = 0 # carry
                 self.V[x] <<= 1
         elif self.opcode & 0xF000 == 0x9000:
-            # 9XY0: if (Vx != Vy)
+            logger.info("#9XY0: if (Vx != Vy)")
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
             if self.V[x] != self.V[y]:
                     self.pc += 2
         elif self.opcode & 0xF000 == 0xA000:
-            # ANNN: I = NNN (sets I to the adress NNN)
+            logger.info("#ANNN: I = NNN (sets I to the adress NNN)")
             self.I = self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0xB000:
-            # BNNN: PC = V0 + NNN (jumps to the adress NNN plus V0)
+            logger.info("#BNNN: PC = V0 + NNN (jumps to the adress NNN plus V0)")
             self.pc = self.V[0] + self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0xC000:
-            # CXNN: Vx = rand() & NN
+            logger.info("#CXNN: Vx = rand() & NN")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
-            self.V[x] = self.rand() + NN
+            self.V[x] = random.randint(0, 255) + NN
         elif self.opcode & 0xF000 == 0xD000:
-            # DXYN: draw(Vx, Vy, N)
+            logger.info("#DXYN: draw(Vx, Vy, N)")
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
             height = (self.opcode & 0x000F)
             self.draw(self.V[x],self.V[y], height)
         elif self.opcode & 0xF0FF == 0xE09E:
-            # EX9E: if (key() == Vx)
+            logger.info("#EX9E: if (key() == Vx)")
             x = (self.opcode & 0x0F00) >> 8
-            if self.key == self.V[x]:
+            if self.key[self.V[x]] != 0:
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xE0A1:
-            # EXA1: if (key() != Vx)
+            logger.info("#EXA1: if (key() != Vx)")
             x = (self.opcode & 0x0F00) >> 8
-            if self.key != self.V[x]:
+            if self.key[self.V[x]] == 0:
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xF007:
-            # FX07: Vx = get_delay()
+            logger.info("#FX07: Vx = get_delay()")
             x = (self.opcode & 0x0F00) >> 8
-            self.delay_timer = x
+            self.V[x] = self.delay_timer
         elif self.opcode & 0xF0FF == 0xF00A:
-            # FX0A: Vx = get_key()
+            logger.info("#FX0A: Vx = get_key()")
             x = (self.opcode & 0x0F00) >> 8
             self.V[x] = self.get_key()
         elif self.opcode & 0xF0FF == 0xF015:
-            # FX15: delay_time(Vx)
+            logger.info("#FX15: delay_time(Vx)")
             x = (self.opcode & 0x0F00) >> 8
             self.delay_timer = self.V[x]
         elif self.opcode & 0xF0FF == 0xF018:
-            # FX18: sound_timer(Vx)
+            logger.info("#FX18: sound_timer(Vx)")
             x = (self.opcode & 0x0F00) >> 8
             self.sound_timer = self.V[x]
         elif self.opcode & 0xF0FF == 0xF01E:
-            # FX1E: I += Vx
+            logger.info("#FX1E: I += Vx")
             x = (self.opcode & 0x0F00) >> 8
             self.I += self.V[x]
         elif self.opcode & 0xF0FF == 0xF029:
-            # FX29: I = sprite_addr[Vx]
+            logger.info("#FX29: I = sprite_addr[Vx]")
             x = (self.opcode & 0x0F00) >> 8
             self.I = self.V[x] # TODO: implement sprite_add[Vx]
         elif self.opcode & 0xF0FF == 0xF033:
-            # FX33: set_BCD(Vx)
+            logger.info("#FX33: set_BCD(Vx)")
                     # *(I+0) = BCD(3);
                     # *(I+1) = BCD(2);
                     # *(I+2) = BCD(1);
@@ -246,12 +270,12 @@ class MyChip8(object):
             self.memory[self.I + 1] = int(x[1])
             self.memory[self.I + 2] = int(x[2])
         elif self.opcode & 0xF0FF == 0xF055:
-            # FX55: reg_dump(Vx, &I)
+            logger.info("#FX55: reg_dump(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
             for i in range(0, self.V[x]+1): 
                 self.memory[self.I + i] = self.V[i]
         elif self.opcode & 0xF0FF == 0xF065:
-            # FX65: reg_load(Vx, &I)
+            logger.info("#FX65: reg_load(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
             for i in range(0, self.V[x]+1): 
                 self.V[i] = self.memory[self.I + i] 
