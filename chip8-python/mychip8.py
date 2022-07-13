@@ -1,5 +1,7 @@
 import random
 import logging
+import keyboard
+
 logger = logging.getLogger(__name__)  
 logger.setLevel(logging.INFO)
 handler = logging.FileHandler('chip8.log')
@@ -31,7 +33,18 @@ CHIP8_FONTSET = \
 BUFFER_SIZE = 4096
 SEED = 0xFF
 
-
+# Keypad                   Keyboard
+# +-+-+-+-+                +-+-+-+-+
+# |1|2|3|C|                |1|2|3|4|
+# +-+-+-+-+                +-+-+-+-+
+# |4|5|6|D|                |Q|W|E|R|
+# +-+-+-+-+       =>       +-+-+-+-+
+# |7|8|9|E|                |A|S|D|F|
+# +-+-+-+-+                +-+-+-+-+
+# |A|0|B|F|                |Z|X|C|V|
+# +-+-+-+-+                +-+-+-+-+
+KEY_MAP = {c: i for i, c in enumerate('1234qwerasdfzxcv')} 
+          
 class MyChip8(object):
 
     
@@ -42,7 +55,8 @@ class MyChip8(object):
         self.I = 0  # index register
         self.sp = 0  # stack pointer
         self.draw_flag = 0
-        self.key = [0 for _ in range(16)]  # unsigned char
+        self.keys = [0 for _ in range(16)]  # unsigned char
+
 
         # Clear registers V0-VF
         self.V = [0] * 16 # register
@@ -73,12 +87,13 @@ class MyChip8(object):
     def disp_clear(self):
         self.gfx = [0] * (64 * 32)
 
-    def set_keys(self):
-        pass
-    
-    def get_keys(self):
-        pass
-    
+    def get_key(self):
+        while True:
+            print('get_key')
+            key = keyboard.read_key()
+            if  key in KEY_MAP:         
+                return key
+                
     def draw(self, Vx, Vy, height):
         self.V[0xF] = 0
         for y in range(0, height):
@@ -92,6 +107,16 @@ class MyChip8(object):
         self.draw_flag = 1
         self.pc += 2
         
+    def set_keys(self):
+                
+        # Register callback for key
+        for c in KEY_MAP:  
+            if keyboard.is_pressed(c):
+                self.keys[KEY_MAP[c]] = 1
+            else:
+                self.keys[KEY_MAP[c]] = 0
+
+
 
     def emulate_cycle(self):
         """Proceed one cycle of emulater following the steps below:
@@ -105,10 +130,10 @@ class MyChip8(object):
         print(f'self.I: {self.I}')
         print(f'self.pc: {self.pc}')
         print(f'self.stack: {self.stack}')
+        print(f'keys: {self.keys}')
         print(f'self.sp: {self.sp}')
         print(f'self.delay_timer: {self.delay_timer}')
-        
-        
+
         # Fetch opcode
         self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc + 1]
         self.pc += 2
@@ -229,12 +254,12 @@ class MyChip8(object):
         elif self.opcode & 0xF0FF == 0xE09E:
             logger.info("#EX9E: if (key() == Vx)")
             x = (self.opcode & 0x0F00) >> 8
-            if self.key[self.V[x]] != 0:
+            if self.keys[self.V[x]] != 0:
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xE0A1:
             logger.info("#EXA1: if (key() != Vx)")
             x = (self.opcode & 0x0F00) >> 8
-            if self.key[self.V[x]] == 0:
+            if self.keys[self.V[x]] == 0:
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xF007:
             logger.info("#FX07: Vx = get_delay()")

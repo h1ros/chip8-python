@@ -1,11 +1,10 @@
 from mychip8 import MyChip8
 import time
-import argparse
+import argparse        
 
 def main(path_rom):
     # Set up render system and register input callbacks
     setup_graphics()
-    setup_input()
 
     # Initialize the Chip8 system and load the game into the memory
     my_chip8 = MyChip8()
@@ -29,9 +28,6 @@ def main(path_rom):
 def setup_graphics():
     pass
 
-
-def setup_input():
-    pass
 
 
 def draw_graphics(gfx, t='*', f=' '):
