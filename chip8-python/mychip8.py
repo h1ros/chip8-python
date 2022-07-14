@@ -298,6 +298,7 @@ class MyChip8(object):
             logger.info("#FX55: reg_dump(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
             for i in range(0, self.V[x]+1): 
+                if self.I + i < BUFFER_SIZE
                 self.memory[self.I + i] = self.V[i]
         elif self.opcode & 0xF0FF == 0xF065:
             logger.info("#FX65: reg_load(Vx, &I)")
