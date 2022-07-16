@@ -13,7 +13,7 @@ def main(path_rom):
     # Emulation loop
     while True:
         print('Emulation Loop')
-        time.sleep(.01)
+        time.sleep(.1)
         # Emulate one cycle
         my_chip8.emulate_cycle()
 

@@ -1,7 +1,6 @@
 import random
 import logging
 import keyboard
-
 logger = logging.getLogger(__name__)  
 logger.setLevel(logging.INFO)
 handler = logging.FileHandler('chip8.log')
@@ -165,7 +164,7 @@ class MyChip8(object):
             NN = self.opcode & 0x00FF 
             if self.V[x] == NN:
                 self.pc += 2
-            logger.info(f"# 3XNN: if (Vx {self.V[x]} ({x}) == NN {NN})")
+            logger.info(f"# 3XNN: if (Vx ({self.V[x]}) at x ({x}) == NN {NN})")
         elif self.opcode & 0xF000 == 0x4000:
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
@@ -189,11 +188,13 @@ class MyChip8(object):
         elif self.opcode & 0xF000 == 0x7000:
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
-            logger.info(f"#7XNN: Vx ({self.V[x]}) x ({x}) += NN ({NN}) -> Vx ({self.V[x] + NN})")
-            self.V[x] += NN # Carry flag is not changed
-            if self.V[x] > 256:
-                self.V[x] -= 256
-            
+            logger.info(f"#7XNN: Vx ({self.V[x]}) at x ({x}) += NN ({NN}) -> Vx ({self.V[x] + NN})")
+            if self.V[x] > 256 - NN:
+                self.V[x] -=  256 - NN # Carry flag is not changed
+            else:
+                self.V[x] += NN
+            logger.info(f"#7XNN: Vx ({self.V[x]})")
+                
         elif self.opcode & 0xF000 == 0x8000:
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
@@ -214,7 +215,7 @@ class MyChip8(object):
                 if self.V[y] >  256 - self.V[x]:
                     logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] - (256 - self.V[x])}) with carry")
                     self.V[0xf] = 1 # carry
-                    self.V[x] += - (256 - self.V[x])
+                    self.V[x] -= 256 - self.V[x]
                 else:
                     logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[x]})")
                     self.V[0xf] = 0
@@ -222,24 +223,33 @@ class MyChip8(object):
                 logger.info(f"#8XY4: Vx ({self.V[x]}))")
                 
             elif case == 5:
-                logger.info("#8XY5: Vx -= Vy")
-                self.V[x] -= self.V[y]
-            elif case == 6:
-                logger.info("#8XY6: Vx >>= Vy")
-                self.V[x] >>= self.V[y]            
-                logger.info("#8XY7: Vx = Vy - Vx")
-            elif case == 7:
+                logger.info(f"#8XY5: Vx ({self.V[x]}) -= Vy ({self.V[y]}))")
                 if self.V[x] < self.V[y]:
-                    self.V[x] = 0  # TODO: check the behavior when it's below zero
+                    logger.info(f"#8XY5: borrow from carry")
+                    self.V[0xF] = 0
+                    self.V[x] = 256 - (self.V[y] - self.V[x])
                 else:
-                    self.V[x] = self.V[x] - self.V[y]            
+                    self.V[0xF] = 1                                    
+                    self.V[x] -= self.V[y]
+                logger.info(f"#8XY5: Vx ({self.V[x]})")
+            elif case == 6:
+                logger.info(f"#8XY6: Vx ({self.V[x]}) at x ({x}) >>= 1")
+                self.V[x] >>= 1
+                logger.info(f"#8XY6: Vx ({self.V[x]}) at x ({x})")
+            elif case == 7:
+                logger.info(f"#8XY7: Vx ({self.V[x]}) at x ({x}) = Vy - Vx)")
+                if self.V[x] < self.V[y]:
+                    self.V[x] = self.V[y] - self.V[x]  # no borrow
+                    self.V[0xF] = 0          
+                else:
+                    self.V[x] = 256 - self.V[x] + self.V[y]
+                    self.V[0xF] = 1          
+                logger.info(f"#8XY7: Vx ({self.V[x]}) ")
             elif case == 0xE:
-                logger.info("#8XYE: Vx <<= 1")
-                if self.V[x] > 128:
-                    self.V[0xF] = 1 # carry
-                else:
-                    self.V[0xF] = 0 # carry
-                self.V[x] <<= 1
+                logger.info(f"#8XYE: Vx ({self.V[x]}) at x ({x}) <<= 1")
+                self.V[0xF] = bin(self.V[x])[:2] # the most significant bit to VF
+                self.V[x] = int(bin(self.V[x] << 1)[-8:], 2)
+                logger.info(f"#8XYE: Vx ({self.V[x]})")
         elif self.opcode & 0xF000 == 0x9000:
             logger.info("#9XY0: if (Vx != Vy)")
             x = (self.opcode & 0x0F00) >> 8
@@ -262,14 +272,14 @@ class MyChip8(object):
             y = (self.opcode & 0x00F0) >> 4
             N = (self.opcode & 0x000F)
             self.draw(self.V[x],self.V[y], N)
-            logger.info(f"#DXYN: draw(Vx ({self.V[x]}) x({x}), Vy ({self.V[y]}) y ({y}), N ({N})) ")
+            logger.info(f"#DXYN: draw(Vx ({self.V[x]}) at x({x}), Vy ({self.V[y]}) at y ({y}), N height ({N}))")
         elif self.opcode & 0xF0FF == 0xE09E:
-            logger.info("#EX9E: if (key() == Vx)")
             x = (self.opcode & 0x0F00) >> 8
+            logger.info(f"#EX9E: if (key() ({self.keys[self.V[x]]}) == Vx ({self.V[x]}) at x({x}))")
             if self.keys[self.V[x]] != 0:
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xE0A1:
-            logger.info("#EXA1: if (key() != Vx)")
+            logger.info(f"#EXA1: if (key() ({self.keys[self.V[x]]}) != Vx ({self.V[x]}) at x({x}))")
             x = (self.opcode & 0x0F00) >> 8
             if self.keys[self.V[x]] == 0:
                 self.pc += 2
@@ -294,29 +304,32 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             self.I += self.V[x]
         elif self.opcode & 0xF0FF == 0xF029:
+            import pdb; pdb.set_trace()
             logger.info("#FX29: I = sprite_addr[Vx]")
             x = (self.opcode & 0x0F00) >> 8
             self.I = self.V[x] # TODO: implement sprite_add[Vx]
         elif self.opcode & 0xF0FF == 0xF033:
-            logger.info("#FX33: set_BCD(Vx)")
+            x = (self.opcode & 0x0F00) >> 8
+            logger.info(f"#FX33: set_BCD(Vx) Vx ({self.V[x]}) at x ({x})")
                     # *(I+0) = BCD(3);
                     # *(I+1) = BCD(2);
                     # *(I+2) = BCD(1);
-            x = str((self.opcode & 0x0F00) >> 8).zfill(3)
-            self.memory[self.I] = int(x[0])
-            self.memory[self.I + 1] = int(x[1])
-            self.memory[self.I + 2] = int(x[2])
+            bcd = str(self.V[x]).zfill(3)
+            self.memory[self.I] = int(bcd[0])
+            self.memory[self.I + 1] = int(bcd[1])
+            self.memory[self.I + 2] = int(bcd[2])
         elif self.opcode & 0xF0FF == 0xF055:
-            logger.info("#FX55: reg_dump(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
-            for i in range(0, self.V[x]+1): 
-                if self.I + i < BUFFER_SIZE:
-                    self.memory[self.I + i] = self.V[i]
+            logger.info(f"#FX55: reg_dump(Vx ({self.V[x]}) at x ({x}), &I ({self.I}))")
+            logger.info(f'V0 ~ VX: {self.V[:x]}')
+            for i in range(x + 1):
+                self.memory[self.I + i] = self.V[i]
         elif self.opcode & 0xF0FF == 0xF065:
-            logger.info("#FX65: reg_load(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
-            for i in range(0, self.V[x]+1): 
+            logger.info(f"#FX65: reg_load(Vx ({self.V[x]}) at x ({x}), &I ({self.I}))")
+            for i in range(x + 1):
                 self.V[i] = self.memory[self.I + i] 
+            logger.info(f'V0 ~ VX: {self.V[:x]}')
         else:  
             raise('Unknown opcode: 0x%x\n' % self.opcode)
             
