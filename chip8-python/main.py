@@ -13,7 +13,7 @@ def main(path_rom):
     # Emulation loop
     while True:
         print('Emulation Loop')
-        time.sleep(1)
+        time.sleep(.01)
         # Emulate one cycle
         my_chip8.emulate_cycle()
 
@@ -30,12 +30,16 @@ def setup_graphics():
 
 
 
-def draw_graphics(gfx, t='*', f=' '):
+def draw_graphics(gfx, t='■', f='□'):
     print(f'gfx: \n')
     graph = '-' * 64 + '\n'
+    row = 0
     for i, e in enumerate(gfx):
         if i % 64 == 0:
-            graph += '\n'
+            graph += f'\n row {str(row).zfill(2)}   '
+            row += 1
+        elif i % 8 == 0:
+            graph += '|'    
         if e:
             graph += t
         else:

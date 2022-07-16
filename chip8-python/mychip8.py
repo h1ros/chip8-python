@@ -96,6 +96,8 @@ class MyChip8(object):
                 
     def draw(self, Vx, Vy, height):
         self.V[0xF] = 0
+        logger.info(f'memory from I ({self.I}) to I + height ({self.I + height})')
+        logger.info(f'memory: ({self.memory[self.I: self.I + height]})')
         for y in range(0, height):
             pixel = self.memory[self.I + y]
             for x in range(0, 8):
@@ -105,7 +107,7 @@ class MyChip8(object):
                     self.gfx[Vx + x + ((Vy + y) * 64)] ^= 1
         
         self.draw_flag = 1
-        self.pc += 2
+        # self.pc += 2
         
     def set_keys(self):
                 
@@ -159,33 +161,39 @@ class MyChip8(object):
             self.stack[self.sp] = self.pc
             self.pc =  self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0x3000:
-            logger.info("# 3XNN: if (Vx == NN)")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
             if self.V[x] == NN:
                 self.pc += 2
+            logger.info(f"# 3XNN: if (Vx {self.V[x]} ({x}) == NN {NN})")
         elif self.opcode & 0xF000 == 0x4000:
-            logger.info("# 4XNN: if (Vx != NN)")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
+            logger.info(f"# 4XNN: if (Vx ({self.V[x]}) at x ({x}) != NN ({NN}))")
             if self.V[x] != NN:
+                logger.info(f"    The condition holds. pc += 2")
                 self.pc += 2
+                
         elif self.opcode & 0xF000 == 0x5000:
-            logger.info("#5XY0: if (Vx == Vy)")
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
+            logger.info(f"#5XY0: if (Vx ({self.V[x]}) at x ({x}) == Vy ( ({self.V[y]}))) at y ({y})")
             if self.V[x] == self.V[y]:
-                    self.pc += 2
+                logger.info(f"    The condition holds. pc += 2")            
+                self.pc += 2
         elif self.opcode & 0xF000 == 0x6000:
-            logger.info("#6XNN: Sets VX to NN")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
+            logger.info(f"#6XNN: Sets VX ({self.V[x]}) at x ({x}) to NN ({NN})")
             self.V[x] = NN
         elif self.opcode & 0xF000 == 0x7000:
-            logger.info("#7XNN: Vx += NN")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
+            logger.info(f"#7XNN: Vx ({self.V[x]}) x ({x}) += NN ({NN}) -> Vx ({self.V[x] + NN})")
             self.V[x] += NN # Carry flag is not changed
+            if self.V[x] > 256:
+                self.V[x] -= 256
+            
         elif self.opcode & 0xF000 == 0x8000:
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
@@ -203,12 +211,16 @@ class MyChip8(object):
                 logger.info("#8XY3: Vx ^= Vy")
                 self.V[x] ^= self.V[y]
             elif case == 4:
-                logger.info("#8XY4: Vx += Vy")
-                if self.V[y] >  16 - self.V[x]:
-                    self.V[0xF] = 1 # carry
+                if self.V[y] >  256 - self.V[x]:
+                    logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] - (256 - self.V[x])}) with carry")
+                    self.V[0xf] = 1 # carry
+                    self.V[x] += - (256 - self.V[x])
                 else:
-                    self.V[0xF] = 0
-                self.V[x] += self.V[y] 
+                    logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[x]})")
+                    self.V[0xf] = 0
+                    self.V[x] += self.V[y]
+                logger.info(f"#8XY4: Vx ({self.V[x]}))")
+                
             elif case == 5:
                 logger.info("#8XY5: Vx -= Vy")
                 self.V[x] -= self.V[y]
@@ -235,7 +247,7 @@ class MyChip8(object):
             if self.V[x] != self.V[y]:
                     self.pc += 2
         elif self.opcode & 0xF000 == 0xA000:
-            logger.info("#ANNN: I = NNN (sets I to the adress NNN)")
+            logger.info(f"#ANNN: I = NNN (sets I to the adress NNN ({self.opcode & 0x0FFF}))")
             self.I = self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0xB000:
             logger.info("#BNNN: PC = V0 + NNN (jumps to the adress NNN plus V0)")
@@ -246,11 +258,11 @@ class MyChip8(object):
             NN = self.opcode & 0x00FF 
             self.V[x] = random.randint(0, 255) + NN
         elif self.opcode & 0xF000 == 0xD000:
-            logger.info("#DXYN: draw(Vx, Vy, N)")
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
-            height = (self.opcode & 0x000F)
-            self.draw(self.V[x],self.V[y], height)
+            N = (self.opcode & 0x000F)
+            self.draw(self.V[x],self.V[y], N)
+            logger.info(f"#DXYN: draw(Vx ({self.V[x]}) x({x}), Vy ({self.V[y]}) y ({y}), N ({N})) ")
         elif self.opcode & 0xF0FF == 0xE09E:
             logger.info("#EX9E: if (key() == Vx)")
             x = (self.opcode & 0x0F00) >> 8
@@ -298,8 +310,8 @@ class MyChip8(object):
             logger.info("#FX55: reg_dump(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
             for i in range(0, self.V[x]+1): 
-                if self.I + i < BUFFER_SIZE
-                self.memory[self.I + i] = self.V[i]
+                if self.I + i < BUFFER_SIZE:
+                    self.memory[self.I + i] = self.V[i]
         elif self.opcode & 0xF0FF == 0xF065:
             logger.info("#FX65: reg_load(Vx, &I)")
             x = (self.opcode & 0x0F00) >> 8
