@@ -14,6 +14,9 @@ This project follows the rules below.
 1. Read a manual / documentation like [Wiki CHIP-8](https://en.wikipedia.org/wiki/CHIP-8#Virtual_machine_description) or guidance / tutorial like [blog - write a chip8 emulator](https://tobiasvl.github.io/blog/write-a-chip-8-emulator/)
 2. Don't look at other's implementation or code itself unless absolutely necessary or inevitable.
 
+# Test ROM 
+* Chip-8 test https://github.com/corax89/chip8-test-rom
+* IBM Logo https://github.com/loktar00/chip8/blob/master/roms/IBM%20Logo.ch8 
 
 # Reference
 * Chip-8 Tutorial 
@@ -31,3 +34,5 @@ This project follows the rules below.
 * sp - stack pointer
 * I - index register
  
+ 
+
