@@ -1,9 +1,11 @@
 import random
 import logging
 import keyboard
+import os
+
 logger = logging.getLogger(__name__)  
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler('chip8.log')
+handler = logging.FileHandler('chip8.log', mode='w')
 formatter = logging.Formatter('%(asctime)s : %(name)s  : %(funcName)s : %(levelname)s : %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -30,7 +32,6 @@ CHIP8_FONTSET = \
 ]
 # fmt: on
 BUFFER_SIZE = 4096
-SEED = 0xFF
 
 # Keypad                   Keyboard
 # +-+-+-+-+                +-+-+-+-+
@@ -58,25 +59,24 @@ class MyChip8(object):
 
 
         # Clear registers V0-VF
-        self.V = [0] * 16 # register
+        self.V = [0 for _ in range(16)] # register
         # Clear memory
-        self.memory = [0] * BUFFER_SIZE # memory
+        self.memory = [0 for _ in range(BUFFER_SIZE)]  # memory
+        # Load fontset
+        for i in range(0, len(CHIP8_FONTSET)):
+            self.memory[i] = CHIP8_FONTSET[i]
 
         # Clear display
         self.disp_clear()
         # Clear stack
-        self.stack = [0 for _ in range(16)]  # unsigned short
-        
-        # Load fontset
-        for i in range(0, len(CHIP8_FONTSET)):
-            self.memory[i] = CHIP8_FONTSET[i]
+        self.stack = [0 for _ in range(16)]  # unsigned short        
 
         # Reset timers
         self.delay_timer = 0
         self.sound_timer = 0
 
     def load_game(self, path_rom: str):
-        print(f'Loading ROM: {path_rom}')
+        logger.info(f'Loading ROM: {path_rom}')
         with open(path_rom, "rb") as f:
             for i in range(0, BUFFER_SIZE - 512):
                 b = f.read(1) # read one hexadecimal and store as integer
@@ -84,29 +84,34 @@ class MyChip8(object):
                     self.memory[i + 512] = int.from_bytes(b, 'big')
         
     def disp_clear(self):
-        self.gfx = [0] * (64 * 32)
-
+        self.gfx = [0 for _ in range(64 * 32)]
+        
     def get_key(self):
         while True:
-            print('get_key')
             key = keyboard.read_key()
             if  key in KEY_MAP:         
+                logger.info(f'[{key}] is pressed')
                 return key
                 
     def draw(self, Vx, Vy, height):
-        self.V[0xF] = 0
+        self.V[0xF] = 0        
         logger.info(f'memory from I ({self.I}) to I + height ({self.I + height})')
         logger.info(f'memory: ({self.memory[self.I: self.I + height]})')
-        for y in range(0, height):
-            pixel = self.memory[self.I + y]
-            for x in range(0, 8):
-                if (pixel  & (0x80 >> x)) != 0:
-                    if self.gfx[(Vx + x + ((Vy + y) * 64)) == 1]:
-                        self.V[0xF] = 1
-                    self.gfx[Vx + x + ((Vy + y) * 64)] ^= 1
+        logger.info(f'Vx, Vy = {Vx}, {Vy}')
         
+        if (0 <= Vx <= 0x3F) and (0 <= Vy <= 0x1F):             
+            for y in range(0, height):
+                pixel = self.memory[self.I + y]
+                logger.info(f"raw {pixel} {bin(pixel)[2:].zfill(8).replace('0', '□').replace('1', '■')} at (x, y) = ({Vx}, {Vy + y})")
+                for x in range(0, 8):
+                    if (pixel & (0x80 >> x)) != 0:
+                        if self.gfx[Vx + x + ((Vy + y) * 64)] == 1:
+                            logger.info('Pixel is changed to unset.')
+                            self.V[0xF] = 1
+                        self.gfx[Vx + x + ((Vy + y) * 64)] ^= 1
+        else:
+            logger.error(f'Out of boundary: Vx,Vy = {Vx}, {Vy}')
         self.draw_flag = 1
-        # self.pc += 2
         
     def set_keys(self):
                 
@@ -117,6 +122,9 @@ class MyChip8(object):
             else:
                 self.keys[KEY_MAP[c]] = 0
 
+    def sprite_add(self, Vx):
+        return Vx * 5
+        
 
 
     def emulate_cycle(self):
@@ -127,23 +135,22 @@ class MyChip8(object):
         4. Update timers
         """
         logger.info(f'opcode: {hex(self.memory[self.pc])[2:]} {hex(self.memory[self.pc+1])[2:].zfill(2)} ')
-        print(f'self.V: {self.V}')
-        print(f'self.I: {self.I}')
-        print(f'self.pc: {self.pc}')
-        print(f'self.stack: {self.stack}')
-        print(f'keys: {self.keys}')
-        print(f'self.sp: {self.sp}')
-        print(f'self.delay_timer: {self.delay_timer}')
+        logger.info(f'V: {self.V}')
+        logger.info(f'I: {self.I}')
+        logger.info(f'pc: {self.pc}')
+        logger.info(f'stack: {self.stack}')
+        logger.info(f'keys: {self.keys}')
+        logger.info(f'sp: {self.sp}')
+        logger.info(f'delay_timer: {self.delay_timer}')
 
         # Fetch opcode
         self.opcode = self.memory[self.pc] << 8 | self.memory[self.pc + 1]
         self.pc += 2
         # Decode opcode
         if self.opcode & 0xFFFF == 0x00EE:
-            logger.info("00EE: return")
+            logger.info("00EE: return from subroutine call")
             self.pc = self.stack[self.sp]
             self.sp -= 1 
-                        
         elif self.opcode & 0xFFF0 == 0x00E0:
             logger.info("00E0: disp_clear()")
             self.disp_clear()
@@ -155,10 +162,11 @@ class MyChip8(object):
             logger.info("# 1NNN: goto NNN;")
             self.pc =  self.opcode & 0x0FFF
         elif self.opcode & 0xF000 == 0x2000:
-            logger.info("# 2NNN: *(0xNNN)()")
+            NNN = self.opcode & 0x0FFF 
+            logger.info(f"# 2NNN: *(0xNNN)() Jump to subroutine at adress NNN ({NNN})")
             self.sp += 1
-            self.stack[self.sp] = self.pc
-            self.pc =  self.opcode & 0x0FFF
+            self.stack[self.sp] = self.pc 
+            self.pc =  NNN
         elif self.opcode & 0xF000 == 0x3000:
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
@@ -172,7 +180,6 @@ class MyChip8(object):
             if self.V[x] != NN:
                 logger.info(f"    The condition holds. pc += 2")
                 self.pc += 2
-                
         elif self.opcode & 0xF000 == 0x5000:
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
@@ -189,7 +196,7 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
             logger.info(f"#7XNN: Vx ({self.V[x]}) at x ({x}) += NN ({NN}) -> Vx ({self.V[x] + NN})")
-            if self.V[x] > 256 - NN:
+            if self.V[x] >= 256 - NN:
                 self.V[x] -=  256 - NN # Carry flag is not changed
             else:
                 self.V[x] += NN
@@ -212,7 +219,7 @@ class MyChip8(object):
                 logger.info("#8XY3: Vx ^= Vy")
                 self.V[x] ^= self.V[y]
             elif case == 4:
-                if self.V[y] >  256 - self.V[x]:
+                if self.V[y] >=  256 - self.V[x]:
                     logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] - (256 - self.V[x])}) with carry")
                     self.V[0xf] = 1 # carry
                     self.V[x] -= 256 - self.V[x]
@@ -224,7 +231,7 @@ class MyChip8(object):
                 
             elif case == 5:
                 logger.info(f"#8XY5: Vx ({self.V[x]}) -= Vy ({self.V[y]}))")
-                if self.V[x] < self.V[y]:
+                if self.V[x] <= self.V[y]:
                     logger.info(f"#8XY5: borrow from carry")
                     self.V[0xF] = 0
                     self.V[x] = 256 - (self.V[y] - self.V[x])
@@ -238,13 +245,13 @@ class MyChip8(object):
                 logger.info(f"#8XY6: Vx ({self.V[x]}) at x ({x})")
             elif case == 7:
                 logger.info(f"#8XY7: Vx ({self.V[x]}) at x ({x}) = Vy - Vx)")
-                if self.V[x] < self.V[y]:
+                if self.V[x] <= self.V[y]:
                     self.V[x] = self.V[y] - self.V[x]  # no borrow
                     self.V[0xF] = 0          
                 else:
                     self.V[x] = 256 - self.V[x] + self.V[y]
                     self.V[0xF] = 1          
-                logger.info(f"#8XY7: Vx ({self.V[x]}) ")
+                logger.info(f"#8XY7: Vx ({self.V[x]})")
             elif case == 0xE:
                 logger.info(f"#8XYE: Vx ({self.V[x]}) at x ({x}) <<= 1")
                 self.V[0xF] = bin(self.V[x])[:2] # the most significant bit to VF
@@ -266,30 +273,34 @@ class MyChip8(object):
             logger.info("#CXNN: Vx = rand() & NN")
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF 
-            self.V[x] = random.randint(0, 255) + NN
+            rnd = random.randint(0, 255)
+            self.V[x] = rnd & NN
+            
         elif self.opcode & 0xF000 == 0xD000:
             x = (self.opcode & 0x0F00) >> 8
             y = (self.opcode & 0x00F0) >> 4
             N = (self.opcode & 0x000F)
-            self.draw(self.V[x],self.V[y], N)
             logger.info(f"#DXYN: draw(Vx ({self.V[x]}) at x({x}), Vy ({self.V[y]}) at y ({y}), N height ({N}))")
+            self.draw(self.V[x],self.V[y], N)
         elif self.opcode & 0xF0FF == 0xE09E:
             x = (self.opcode & 0x0F00) >> 8
-            logger.info(f"#EX9E: if (key() ({self.keys[self.V[x]]}) == Vx ({self.V[x]}) at x({x}))")
+            logger.info(f"#EX9E: if (key() ({self.keys[self.V[x]]}) ==  1 ~ Vx ({self.V[x]}) at x({x}))")
             if self.keys[self.V[x]] != 0:
+                logger.info(f'key is pressed')
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xE0A1:
-            logger.info(f"#EXA1: if (key() ({self.keys[self.V[x]]}) != Vx ({self.V[x]}) at x({x}))")
             x = (self.opcode & 0x0F00) >> 8
+            logger.info(f"#EXA1: if (key() ({self.keys[self.V[x]]}) != 1 ~ Vx ({self.V[x]}) at x({x}))")
             if self.keys[self.V[x]] == 0:
+                logger.info(f'key is not pressed')
                 self.pc += 2
         elif self.opcode & 0xF0FF == 0xF007:
-            logger.info("#FX07: Vx = get_delay()")
             x = (self.opcode & 0x0F00) >> 8
+            logger.info(f"#FX07: Vx ({self.V[x]}) at x({x})) = get_delay() ({self.delay_timer})")
             self.V[x] = self.delay_timer
         elif self.opcode & 0xF0FF == 0xF00A:
-            logger.info("#FX0A: Vx = get_key()")
             x = (self.opcode & 0x0F00) >> 8
+            logger.info(f"#FX0A: Vx ({self.V[x]}) at x({x})) = get_key() ({self.get_key()})")
             self.V[x] = self.get_key()
         elif self.opcode & 0xF0FF == 0xF015:
             logger.info("#FX15: delay_time(Vx)")
@@ -304,10 +315,9 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             self.I += self.V[x]
         elif self.opcode & 0xF0FF == 0xF029:
-            import pdb; pdb.set_trace()
-            logger.info("#FX29: I = sprite_addr[Vx]")
             x = (self.opcode & 0x0F00) >> 8
-            self.I = self.V[x] # TODO: implement sprite_add[Vx]
+            logger.info(f"#FX29: I = sprite_addr[Vx] ({self.V[x]}) at x ({x})")
+            self.I = self.V[x] * 5 
         elif self.opcode & 0xF0FF == 0xF033:
             x = (self.opcode & 0x0F00) >> 8
             logger.info(f"#FX33: set_BCD(Vx) Vx ({self.V[x]}) at x ({x})")
@@ -338,7 +348,7 @@ class MyChip8(object):
             self.delay_timer -= 1
         if (self.sound_timer > 0): 
             if self.sound_timer == 1:
-                print('Beep!\n')
+                logger.info('Beep!\n')
             self.sound_timer -= 1
                 
             
