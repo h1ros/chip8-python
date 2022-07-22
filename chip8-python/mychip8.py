@@ -52,7 +52,7 @@ class MyChip8(object):
         self.pc = 0x200  # program counter starts at 0x200 (=512)
         self.opcode = 0  # initial opcode
         self.I = 0  # index register
-        self.sp = 0  # stack pointer
+        self.sp = -1  # stack pointer
         self.draw_flag = 0
         self.keys = [0 for _ in range(16)]  # unsigned char
 
@@ -96,7 +96,7 @@ class MyChip8(object):
             key = keyboard.read_key()
             if  key in KEY_MAP:         
                 logger.info(f'[{key}] is pressed')
-                return key
+                return KEY_MAP[key]
                 
     def draw(self, Vx, Vy, height):
         self.V[0xF] = 0        
@@ -109,7 +109,7 @@ class MyChip8(object):
                 pixel = self.memory[self.I + y]
                 logger.info(f"raw {pixel} {bin(pixel)[2:].zfill(8).replace('0', '□').replace('1', '■')} at (x, y) = ({Vx}, {Vy + y})")
                 for x in range(0, 8):
-                    if (pixel & (0x80 >> x)) != 0:
+                    if ((pixel & (0x80 >> x)) != 0) & (Vx + x + ((Vy + y) * 64) < 2048) :
                         if self.gfx[Vx + x + ((Vy + y) * 64)] == 1:
                             logger.info('Pixel is changed to unset.')
                             self.V[0xF] = 1
@@ -318,13 +318,15 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             self.sound_timer = self.V[x]
         elif self.opcode & 0xF0FF == 0xF01E:
-            logger.info("#FX1E: I += Vx")
             x = (self.opcode & 0x0F00) >> 8
+            logger.info(f"#FX1E: I ({self.I}) += Vx ({self.V[x]}) at x ({x})]")
             self.I += self.V[x]
+            logger.info(f"#FX1E: I ({self.I})")
         elif self.opcode & 0xF0FF == 0xF029:
             x = (self.opcode & 0x0F00) >> 8
             logger.info(f"#FX29: I = sprite_addr[Vx] ({self.V[x]}) at x ({x})")
             self.I = self.V[x] * 5 
+            logger.info(f"#FX29: I ({self.I})")
         elif self.opcode & 0xF0FF == 0xF033:
             x = (self.opcode & 0x0F00) >> 8
             logger.info(f"#FX33: set_BCD(Vx) Vx ({self.V[x]}) at x ({x})")
