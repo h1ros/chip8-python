@@ -1,8 +1,6 @@
 from mychip8 import MyChip8
 import time
 import argparse        
-import os
-import tkinter as tk
 import pygame
 import sys
 

@@ -1,7 +1,6 @@
 import random
 import logging
 import keyboard
-import os
 
 logger = logging.getLogger(__name__)  
 logger.setLevel(logging.INFO)
@@ -57,7 +56,6 @@ class MyChip8(object):
         self.draw_flag = 0
         self.keys = [0 for _ in range(16)]  # unsigned char
 
-
         # Clear registers V0-VF
         self.V = [0 for _ in range(16)] # register
         # Clear memory
@@ -74,14 +72,21 @@ class MyChip8(object):
         # Reset timers
         self.delay_timer = 0
         self.sound_timer = 0
+        
+        if [c for c in self.V  if ((c < 0) or (c > 255)) ]:
+            logger.error(f'Register over flow: {self.V}')
 
     def load_game(self, path_rom: str):
         logger.info(f'Loading ROM: {path_rom}')
         with open(path_rom, "rb") as f:
-            for i in range(0, BUFFER_SIZE - 512):
+            i = 0
+            while True:
                 b = f.read(1) # read one hexadecimal and store as integer
                 if b:
                     self.memory[i + 512] = int.from_bytes(b, 'big')
+                else:
+                    break
+                i += 1
         
     def disp_clear(self):
         self.gfx = [0 for _ in range(64 * 32)]
@@ -219,12 +224,14 @@ class MyChip8(object):
                 logger.info("#8XY3: Vx ^= Vy")
                 self.V[x] ^= self.V[y]
             elif case == 4:
-                if self.V[y] >=  256 - self.V[x]:
-                    logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] - (256 - self.V[x])}) with carry")
+                # 17 += 0 = 17
+                # 16 += 255 -> 16
+                if self.V[y] >  255 - self.V[x]:
+                    logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[y] - 255 }) with carry")
                     self.V[0xf] = 1 # carry
-                    self.V[x] -= 256 - self.V[x]
+                    self.V[x] = self.V[x] + self.V[y] - 256 # TODO: avoid overflow
                 else:
-                    logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[x]})")
+                    logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[y]})")
                     self.V[0xf] = 0
                     self.V[x] += self.V[y]
                 logger.info(f"#8XY4: Vx ({self.V[x]}))")
@@ -249,7 +256,7 @@ class MyChip8(object):
                     self.V[x] = self.V[y] - self.V[x]  # no borrow
                     self.V[0xF] = 0          
                 else:
-                    self.V[x] = 256 - self.V[x] + self.V[y]
+                    self.V[x] = 255 - self.V[x] + self.V[y]
                     self.V[0xF] = 1          
                 logger.info(f"#8XY7: Vx ({self.V[x]})")
             elif case == 0xE:
