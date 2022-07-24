@@ -44,7 +44,7 @@ HEIGHT = 32
 # +-+-+-+-+                +-+-+-+-+
 # |A|0|B|F|                |Z|X|C|V|
 # +-+-+-+-+                +-+-+-+-+
-KEY_MAP = {c: i for i, c in enumerate('1234qwerasdfzxcv')}
+KEY_MAP = {c: i for i, c in enumerate('x123qweasdzc4rfv')}
 
 class MyChip8(object):
 
@@ -211,8 +211,8 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF
             logger.info(f"#7XNN: Vx ({self.V[x]}) at x ({x}) += NN ({NN}) -> Vx ({self.V[x] + NN})")
-            if self.V[x] >= 256 - NN:
-                self.V[x] -=  256 - NN # Carry flag is not changed
+            if self.V[x] >= 255 - NN:
+                self.V[x] -=  255 - NN # Carry flag is not changed
             else:
                 self.V[x] += NN
             logger.info(f"#7XNN: Vx ({self.V[x]})")
@@ -239,7 +239,7 @@ class MyChip8(object):
                 if self.V[y] >  255 - self.V[x]:
                     logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[y] - 255 }) with carry")
                     self.V[0xf] = 1 # carry
-                    self.V[x] = self.V[x] + self.V[y] - 256 # TODO: avoid overflow
+                    self.V[x] = self.V[x] + self.V[y] - 255 # TODO: avoid overflow
                 else:
                     logger.info(f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[y]})")
                     self.V[0xf] = 0
@@ -251,7 +251,7 @@ class MyChip8(object):
                 if self.V[x] <= self.V[y]:
                     logger.info(f"#8XY5: borrow from carry")
                     self.V[0xF] = 0
-                    self.V[x] = 256 - (self.V[y] - self.V[x])
+                    self.V[x] = 255 - (self.V[y] - self.V[x])
                 else:
                     self.V[0xF] = 1
                     self.V[x] -= self.V[y]
