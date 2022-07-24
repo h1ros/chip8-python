@@ -211,8 +211,8 @@ class MyChip8(object):
             x = (self.opcode & 0x0F00) >> 8
             NN = self.opcode & 0x00FF
             logger.info(f"#7XNN: Vx ({self.V[x]}) at x ({x}) += NN ({NN}) -> Vx ({self.V[x] + NN})")
-            if self.V[x] >= 255 - NN:
-                self.V[x] -=  255 - NN # Carry flag is not changed
+            if self.V[x] > 255 - NN:
+                self.V[x] -=  256 - NN # Carry flag is not changed
             else:
                 self.V[x] += NN
             logger.info(f"#7XNN: Vx ({self.V[x]})")
