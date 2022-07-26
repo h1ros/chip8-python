@@ -91,7 +91,7 @@ class MyChip8(object):
                 i += 1
 
     def disp_clear(self):
-        self.gfx = [0 for _ in range(64 * 32)]
+        self.gfx = [0 for _ in range(WIDTH * HEIGHT)]
 
     def get_key(self):
         while True:
@@ -120,11 +120,11 @@ class MyChip8(object):
                 elif y < 0:
                     y += HEIGHT
 
-                if ((pixel & (0x80 >> x)) != 0) & (Vx + x + ((Vy + y) * 64) < 2048) :
-                    if self.gfx[Vx + x + ((Vy + y) * 64)] == 1:
+                if ((pixel & (0x80 >> x)) != 0) & (Vx + x + ((Vy + y) * WIDTH) < 2048) :
+                    if self.gfx[Vx + x + ((Vy + y) * WIDTH)] == 1:
                         logger.info('Pixel is changed to unset.')
                         self.V[0xF] = 1
-                    self.gfx[Vx + x + ((Vy + y) * 64)] ^= 1
+                    self.gfx[Vx + x + ((Vy + y) * WIDTH)] ^= 1
 
         self.draw_flag = 1
 
@@ -171,8 +171,6 @@ class MyChip8(object):
             self.disp_clear()
         elif self.opcode & 0xF000 == 0x0000:
             logger.info("0NNN: return;")
-            self.pc = self.stack[self.sp]
-            self.sp -= 1
         elif self.opcode & 0xF000 == 0x1000:
             logger.info("# 1NNN: goto NNN;")
             self.pc =  self.opcode & 0x0FFF
