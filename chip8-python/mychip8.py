@@ -257,6 +257,7 @@ class MyChip8(object):
                 logger.info(f"#8XY5: Vx ({self.V[x]})")
             elif case == 6:
                 logger.info(f"#8XY6: Vx ({self.V[x]}) at x ({x}) >>= 1")
+                self.V[0xF] = self.V[x] & 0x1
                 self.V[x] >>= 1
                 logger.info(f"#8XY6: Vx ({self.V[x]}) at x ({x})")
             elif case == 7:
