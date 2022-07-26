@@ -205,7 +205,6 @@ class MyChip8(object):
                 logger.info(f"    The condition holds. pc += 2")
                 self.pc += 2
         elif self.opcode & 0xF000 == 0x6000:
-
             NN = self.opcode & 0x00FF
             logger.info(
                 f"#6XNN: Sets VX ({self.V[x]}) at x ({x}) to NN ({NN})")
@@ -237,8 +236,8 @@ class MyChip8(object):
                 if self.V[y] > 255 - self.V[x]:
                     logger.info(
                         f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[y] - 255 }) with carry")
-                    self.V[0xf] = 1  # carry
-                    self.V[x] = self.V[x] + self.V[y] - 255
+                    self.V[0xf] = 1 # carry
+                    self.V[x] = self.V[x] + self.V[y] - 256
                 else:
                     logger.info(
                         f"#8XY4: Vx ({self.V[x]}) at x ({x}) += Vy ({self.V[y]}) at y ({y}) -> Vx ({self.V[x] + self.V[y]})")
@@ -248,10 +247,10 @@ class MyChip8(object):
 
             elif case == 5:
                 logger.info(f"#8XY5: Vx ({self.V[x]}) -= Vy ({self.V[y]}))")
-                if self.V[x] <= self.V[y]:
+                if self.V[x] < self.V[y]:
                     logger.info(f"#8XY5: borrow from carry")
                     self.V[0xF] = 0
-                    self.V[x] = 255 - (self.V[y] - self.V[x])
+                    self.V[x] = 256 - (self.V[y] - self.V[x])
                 else:
                     self.V[0xF] = 1
                     self.V[x] -= self.V[y]
@@ -266,7 +265,7 @@ class MyChip8(object):
                     self.V[x] = self.V[y] - self.V[x]  # no borrow
                     self.V[0xF] = 0
                 else:
-                    self.V[x] = 255 - self.V[x] + self.V[y]
+                    self.V[x] = 256 - self.V[x] + self.V[y]
                     self.V[0xF] = 1
                 logger.info(f"#8XY7: Vx ({self.V[x]})")
             elif case == 0xE:
